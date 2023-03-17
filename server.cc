@@ -67,19 +67,19 @@ int main(int ac, char** av) {
                 bool eos{false};
 
                 auto receive_chunk = [&] () -> future<> {
-                    return async([&] () {
-                        auto chunk_opt = source().get();
+                    auto chunk_opt = source().get();
 
-                        if (chunk_opt.has_value()) {
-                            auto [chunk] = *chunk_opt;
-                            slogger.debug("[{}] Got {} bytes", connection_id, chunk.size());
-                            std::memset(receive_buffer.get(), 0, aligned_size);
-                            std::memcpy(receive_buffer.get(), chunk.c_str(), chunk.size());
-                        } else {
-                            slogger.debug("[{}] End of stream", connection_id);
-                            eos = true;
-                        }
-                    });
+                    if (chunk_opt.has_value()) {
+                        auto [chunk] = *chunk_opt;
+                        slogger.debug("[{}] Got {} bytes", connection_id, chunk.size());
+                        std::memset(receive_buffer.get(), 0, aligned_size);
+                        std::memcpy(receive_buffer.get(), chunk.c_str(), chunk.size());
+                    } else {
+                        slogger.debug("[{}] End of stream", connection_id);
+                        eos = true;
+                    }
+
+                    return make_ready_future<>();
                 };
 
                 auto write_chunk = [&] () -> future<> {
@@ -114,7 +114,12 @@ int main(int ac, char** av) {
         so.streaming_domain = rpc::streaming_domain_type(1);
         rpc_protocol::server server{rpc, so, ipv4_addr{"127.0.0.1", port}, {}};
 
-        co_await seastar::sleep_abortable(std::chrono::hours(1));
+        try {
+            co_await seastar::sleep_abortable(std::chrono::hours(1));
+        } catch (const seastar::sleep_aborted&) {
+            // empty
+        }
+
         co_await server.stop();
     });
 }

@@ -70,13 +70,6 @@ int main(int ac, char** av) {
 
             auto rpc_call = rpc.make_client<rpc::source<std::string>(int, rpc::sink<std::string>)>(1);
             auto sink = client.make_stream_sink<serializer, std::string>().get();
-
-            auto sink_kill = defer([sink] () mutable {
-                sink.flush().finally([sink] () mutable {
-                    return sink.close();
-                }).get();
-            });
-
             auto source = rpc_call(client, 666, sink).get0();
 
             clogger.debug("Sending filename: {}", file_path.filename().string());
@@ -99,6 +92,10 @@ int main(int ac, char** av) {
             }
             send_chunk().get();
 
+            sink.flush().finally([sink] () mutable {
+                return sink.close();
+            }).get();
+            source().get();
             clogger.debug("End");
         });
     });
